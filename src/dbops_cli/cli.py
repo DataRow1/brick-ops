@@ -1,52 +1,40 @@
-import typer
 import sys
-from rich import print
+
+import typer
+from rich import print  # noqa
 from rich.prompt import Confirm
 
-from db_ops.core.auth import get_client
 from db_ops.core.adapters.databricks import DatabricksJobsAdapter
-from db_ops.core.jobs import select_jobs
-from db_ops.core.runs import start_jobs_parallel, wait_for_run
-from db_ops.core.models import RunStatus
-
-from dbops_cli.tui import select_jobs as tui_select_jobs
-from db_ops.core.selectors import (
-    JobSelector,
-    NameRegexSelector,
-    TagSelector,
-    AndSelector,
-    OrSelector,
-)
-from db_ops.core.selector_builder import build_selector
+from db_ops.core.auth import get_client
 from db_ops.core.banner import LOGO
-
+from db_ops.core.jobs import select_jobs
+from db_ops.core.models import RunStatus
+from db_ops.core.runs import start_jobs_parallel, wait_for_run
+from db_ops.core.selector_builder import build_selector
+from dbops_cli.tui import select_jobs as tui_select_jobs
 
 if "--help" in sys.argv or "-h" in sys.argv:
     print(LOGO)
 
 app = typer.Typer()
-# app = typer.Typer(
-#     # help="dbops-cli – Databricks operations tooling",
-#     no_args_is_help=True,
-# )
+
 
 @app.callback()
 def main(ctx: typer.Context):
     # For `dbops` without subcommand
-    if ctx.invoked_subcommand is None and not ("--help" in sys.argv or "-h" in sys.argv):
+    if ctx.invoked_subcommand is None and not (
+        "--help" in sys.argv or "-h" in sys.argv
+    ):
         print(LOGO)
+
 
 @app.command()
 def find(
-    name: str | None = typer.Option(
-        None, "--name", help="Regex on job name"
-    ),
+    name: str | None = typer.Option(None, "--name", help="Regex on job name"),
     tag: list[str] = typer.Option(
         [], "--tag", help="Tag selector (key=value)", show_default=False
     ),
-    use_or: bool = typer.Option(
-        False, "--or", help="Use OR instead of AND"
-    ),
+    use_or: bool = typer.Option(False, "--or", help="Use OR instead of AND"),
     profile: str | None = typer.Option(
         None, "--profile", "-p", help="Specify a Databricks CLI profile"
     ),
@@ -76,21 +64,15 @@ def find(
 
 @app.command()
 def run(
-    name: str | None = typer.Option(
-        None, "--name", help="Regex on job name"
-    ),
+    name: str | None = typer.Option(None, "--name", help="Regex on job name"),
     tag: list[str] = typer.Option(
         [], "--tag", help="Tag selector (key=value)", show_default=False
     ),
-    use_or: bool = typer.Option(
-        False, "--or", help="Use OR instead of AND"
-    ),
+    use_or: bool = typer.Option(False, "--or", help="Use OR instead of AND"),
     profile: str | None = typer.Option(
         None, "--profile", "-p", help="Specify a Databricks CLI profile"
     ),
-    parallel: int = typer.Option(
-        5, "--parallel", "-n", help="Start jobs in parallel"
-    ),
+    parallel: int = typer.Option(5, "--parallel", "-n", help="Start jobs in parallel"),
     confirm: bool = typer.Option(
         True, "--confirm/--no-confirm", help="Ask for confirmation before starting jobs"
     ),
@@ -98,7 +80,9 @@ def run(
         False, "--watch", "-w", help="Wait for jobs to complete"
     ),
     dry_run: bool = typer.Option(
-        False, "--dry-run", help="Show which jobs would be started, but don't start them"
+        False,
+        "--dry-run",
+        help="Show which jobs would be started, but don't start them",
     ),
 ):
     """
