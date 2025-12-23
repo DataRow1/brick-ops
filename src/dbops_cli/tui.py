@@ -1,8 +1,19 @@
+"""Terminal UI utilities for Databricks operations tooling."""
+
 import questionary
+
 from db_ops.core.models import Job
 
 
 def select_jobs(jobs: list[Job]) -> list[Job]:
+    """Display a checkbox prompt to select jobs from a list.
+
+    Args:
+        jobs: A list of Job objects to choose from.
+
+    Returns:
+        A list of selected Job objects, or an empty list if none selected.
+    """
     choices = [
         questionary.Choice(
             title=f"{job.id} – {job.name}",
@@ -10,8 +21,4 @@ def select_jobs(jobs: list[Job]) -> list[Job]:
         )
         for job in jobs
     ]
-
-    return questionary.checkbox(
-        "Select jobs:",
-        choices=choices,
-    ).ask() or []
+    return questionary.checkbox("Select jobs:", choices=choices).ask() or []
