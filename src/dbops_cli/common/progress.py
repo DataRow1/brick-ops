@@ -28,13 +28,14 @@ def wait_for_runs_with_progress(
 ) -> list[tuple[JobRun, RunStatus]]:
     """
     Poll all runs until they reach a terminal state. Shows:
-      - an overall progress bar (x/y completed)
+      - an overall progress bar (x/y completed + failures)
       - per-run spinner rows with elapsed timers (stops per run when finished)
 
     Returns list of (JobRun, RunStatus).
     """
     statuses: dict[int, RunStatus] = {r.run_id: RunStatus.PENDING for r in runs}
     finished: set[int] = set()
+    failures = 0
 
     def _style_for(status: RunStatus) -> str:
         if status == RunStatus.SUCCESS:
@@ -50,6 +51,7 @@ def wait_for_runs_with_progress(
         TextColumn("[bold]Overall[/]"),
         BarColumn(),
         TaskProgressColumn(),  # e.g. 2/5
+        TextColumn("failures=[bold red]{task.fields[failures]}[/]"),
         TimeElapsedColumn(),
         console=console,
     )
@@ -66,7 +68,11 @@ def wait_for_runs_with_progress(
         console=console,
     )
 
-    overall_task_id = overall.add_task("overall", total=max(len(runs), 1))
+    overall_task_id = overall.add_task(
+        "overall",
+        total=max(len(runs), 1),
+        failures=0,  # ✅ field used by the failures column
+    )
 
     task_ids: dict[int, int] = {}
     for r in runs:
@@ -79,7 +85,6 @@ def wait_for_runs_with_progress(
             style=_style_for(RunStatus.PENDING),
         )
 
-    # Render both progress components together
     group = Group(overall, per_run)
 
     with Live(group, console=console, refresh_per_second=10, transient=True):
@@ -99,6 +104,11 @@ def wait_for_runs_with_progress(
 
                 if st in (RunStatus.SUCCESS, RunStatus.FAILED, RunStatus.CANCELED):
                     finished.add(r.run_id)
+
+                    # Count failures (FAILED or CANCELED)
+                    if st in (RunStatus.FAILED, RunStatus.CANCELED):
+                        failures += 1
+                        overall.update(overall_task_id, failures=failures)
 
                     done_label = "DONE" if st == RunStatus.SUCCESS else st.value
 
