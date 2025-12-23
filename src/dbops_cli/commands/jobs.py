@@ -1,13 +1,11 @@
 """Commands for managing Databricks Jobs."""
 
-from typing import Any
-
 import typer
 from rich.prompt import Confirm
 
 from db_ops.core.jobs import select_jobs as core_select_jobs
 from db_ops.core.models import RunStatus
-from db_ops.core.runs import start_jobs_parallel, wait_for_run
+from db_ops.core.runs import start_jobs_parallel
 from db_ops.core.selector_builder import build_selector
 from dbops_cli.common.context import AppContext, build_context
 from dbops_cli.common.exits import die, ok_exit, warn_exit
@@ -22,6 +20,7 @@ from dbops_cli.common.options import (
     WatchOpt,
 )
 from dbops_cli.common.output import out
+from dbops_cli.common.progress import wait_for_runs_with_progress
 from dbops_cli.tui import select_jobs as tui_select_jobs
 
 app = typer.Typer(help="Work with Databricks Jobs", no_args_is_help=True)
@@ -108,16 +107,10 @@ def run(
     out.runs_table(runs, title="Started runs")
 
     if watch:
-        results: list[tuple[Any, RunStatus]] = []
-        failed = False
-
-        for r in runs:
-            status = wait_for_run(appctx.adapter, r.run_id)
-            results.append((r, status))
-            if status != RunStatus.SUCCESS:
-                failed = True
+        results = wait_for_runs_with_progress(appctx.adapter, runs, poll_interval=5)
 
         out.run_status_table(results, title="Run status")
 
+        failed = any(status != RunStatus.SUCCESS for _, status in results)
         if failed:
             raise typer.Exit(2)

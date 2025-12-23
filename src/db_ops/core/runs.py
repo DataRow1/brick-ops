@@ -1,8 +1,8 @@
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from db_ops.core.models import JobRun, RunStatus
 from db_ops.core.adapters.databricks import DatabricksJobsAdapter
+from db_ops.core.models import JobRun, RunStatus
 
 
 def start_jobs_parallel(
@@ -13,10 +13,7 @@ def start_jobs_parallel(
     runs: list[JobRun] = []
 
     with ThreadPoolExecutor(max_workers=max_parallel) as pool:
-        futures = [
-            pool.submit(adapter.start_job, job_id)
-            for job_id in job_ids
-        ]
+        futures = [pool.submit(adapter.start_job, job_id) for job_id in job_ids]
 
         for f in as_completed(futures):
             runs.append(f.result())
