@@ -20,4 +20,4 @@ build-backend = "hatchling.build"
 dev-dependencies = ["pytest", "ruff"]
 
 [tool.hatch.build.targets.wheel]
-only-include = ["src"]
+packages = ["src/dbops_cli", "src/db_ops"]
