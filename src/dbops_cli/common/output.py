@@ -90,7 +90,7 @@ class Out:
             choices=choices,
             style=QUESTIONARY_STYLE_SELECT,
             qmark="✦",
-            instruction="Use ↑/↓, space, enter",
+            instruction="Use ↑/↓, space, a (all), i (invert), enter",
             pointer="❯",
             checked_icon="▣",
             unchecked_icon="▢",
