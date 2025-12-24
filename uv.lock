@@ -134,6 +134,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "databricks-sdk" },
+    { name = "typer" },
 ]
 
 [package.optional-dependencies]
@@ -154,6 +155,7 @@ requires-dist = [
     { name = "databricks-sdk", specifier = ">=0.30.0" },
     { name = "questionary", marker = "extra == 'cli'", specifier = ">=2.0" },
     { name = "rich", marker = "extra == 'cli'", specifier = ">=13.7" },
+    { name = "typer", specifier = ">=0.20.1" },
     { name = "typer", marker = "extra == 'cli'", specifier = ">=0.12" },
 ]
 provides-extras = ["cli"]
