@@ -256,5 +256,49 @@ class Out:
 
         console.print(t)
 
+    def uc_owner_change_results_table(
+        self, results, title: str = "Owner change results"
+    ) -> None:
+        """Render results of UC ownership changes (success/fail per object)."""
+        t = Table(title=title, show_lines=False)
+        t.add_column("Object", style="ok")
+        t.add_column("New owner", style="meta")
+        t.add_column("Result")
+
+        for r in results:
+            name = str(getattr(r, "full_name", "") or "")
+            owner = str(getattr(r, "new_owner", "") or "")
+            ok = bool(getattr(r, "ok", False))
+            err = getattr(r, "error", None)
+            t.add_row(name, owner, "[ok]OK[/]" if ok else f"[err]FAIL[/] {err}")
+
+        console.print(t)
+
+    def uc_schema_drop_results_table(
+        self, results, title: str = "Schema drop results"
+    ) -> None:
+        """Render results of dropping UC schemas (success/fail per schema)."""
+        t = Table(title=title, show_lines=False)
+        t.add_column("Schema", style="ok")
+        t.add_column("Result")
+
+        for r in results:
+            name = str(getattr(r, "schema_full_name", "") or "")
+            ok = bool(getattr(r, "ok", False))
+            err = getattr(r, "error", None)
+            t.add_row(name, "[ok]OK[/]" if ok else f"[err]FAIL[/] {err}")
+
+        console.print(t)
+
+    def schemas_table(self, schemas: list[str], title: str = "Schemas") -> None:
+        """Render a table of Unity Catalog schema full names (catalog.schema)."""
+        t = Table(title=title, show_lines=False)
+        t.add_column("Schema", style="ok")
+
+        for s in schemas:
+            t.add_row(str(s))
+
+        console.print(t)
+
 
 out = Out()

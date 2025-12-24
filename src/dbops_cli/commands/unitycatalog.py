@@ -10,12 +10,167 @@ from db_ops.core.auth import get_client
 from db_ops.core.catalog import (
     delete_schema_with_tables,
     delete_tables,
+    drop_empty_schemas,
+    find_empty_schemas,
     parse_schema_full_name,
+    set_tables_owner,
 )
 from dbops_cli.common.options import ProfileOpt
 from dbops_cli.common.output import out
 
 uc_app = typer.Typer(help="Unity Catalog operations.", no_args_is_help=True)
+
+
+@uc_app.command("tables-list")
+def tables_list(
+    schema_arg: str | None = typer.Argument(
+        None, help="Schema in the form catalog.schema"
+    ),
+    schema: str | None = typer.Option(
+        None, "--schema", help="Schema in the form catalog.schema"
+    ),
+    name: str | None = typer.Option(
+        None, "--name", help="Regex filter for table full names"
+    ),
+    owner: str | None = typer.Option(None, "--owner", help="Filter by table owner"),
+    type_: str | None = typer.Option(
+        None,
+        "--type",
+        help="Filter by table type (e.g. MANAGED, EXTERNAL, VIEW). Case-insensitive.",
+    ),
+    profile: str | None = ProfileOpt,
+):
+    """List Unity Catalog tables in a schema."""
+    client = get_client(profile)
+    adapter = UnityCatalogAdapter(client)
+
+    schema_full_name = schema or schema_arg
+    if not schema_full_name:
+        out.error(
+            "Missing schema. Provide it as a positional argument or via --schema."
+        )
+        raise typer.Exit(2)
+
+    catalog, schema_name = parse_schema_full_name(schema_full_name)
+
+    try:
+        tables = adapter.list_tables(catalog=catalog, schema=schema_name)
+    except NotFound:
+        out.error(f"Schema '{schema_full_name}' does not exist.")
+        raise typer.Exit(1)
+    except PermissionDenied:
+        out.error(f"No permission to access schema '{schema_full_name}'.")
+        raise typer.Exit(1)
+
+    if name:
+        rx = re.compile(name)
+        tables = [t for t in tables if rx.search(t.full_name)]
+
+    if owner:
+        tables = [t for t in tables if (t.owner or "").lower() == owner.lower()]
+
+    if type_:
+        want = type_.lower()
+        tables = [t for t in tables if (t.table_type or "").lower() == want]
+
+    if not tables:
+        out.warn("No tables found.")
+        raise typer.Exit(0)
+
+    out.header("Tables")
+    out.info(f"Schema: {schema_full_name} | Tables: {len(tables)}")
+    out.tables_table(tables, title="Tables")
+
+
+@uc_app.command("tables-owner-set")
+def tables_owner_set(
+    schema_arg: str | None = typer.Argument(
+        None, help="Schema in the form catalog.schema"
+    ),
+    schema: str | None = typer.Option(
+        None, "--schema", help="Schema in the form catalog.schema"
+    ),
+    name: str | None = typer.Option(
+        None, "--name", help="Regex filter for table full names"
+    ),
+    owner: str = typer.Option(
+        ..., "--owner", help="New table owner (user or service principal)"
+    ),
+    all_: bool = typer.Option(
+        False, "--all", help="Change owner for all matched tables without selection UI"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would change, but do nothing"
+    ),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation prompt"),
+    profile: str | None = ProfileOpt,
+):
+    """Set the owner for one or more Unity Catalog tables."""
+    client = get_client(profile)
+    adapter = UnityCatalogAdapter(client)
+
+    schema_full_name = schema or schema_arg
+    if not schema_full_name:
+        out.error(
+            "Missing schema. Provide it as a positional argument or via --schema."
+        )
+        raise typer.Exit(2)
+
+    catalog, schema_name = parse_schema_full_name(schema_full_name)
+    try:
+        tables = adapter.list_tables(catalog=catalog, schema=schema_name)
+    except NotFound:
+        out.error(f"Schema '{schema_full_name}' does not exist.")
+        raise typer.Exit(1)
+    except PermissionDenied:
+        out.error(f"No permission to access schema '{schema_full_name}'.")
+        raise typer.Exit(1)
+
+    if name:
+        rx = re.compile(name)
+        tables = [t for t in tables if rx.search(t.full_name)]
+
+    if not tables:
+        out.warn("No tables found.")
+        raise typer.Exit(0)
+
+    full_names = [t.full_name for t in tables]
+    out.header("Matched tables")
+    out.tables_table(tables, title="Matched tables")
+
+    selected = (
+        full_names
+        if all_
+        else out.select_many("Select tables to change owner:", full_names)
+    )
+    if not selected:
+        out.warn("No tables selected.")
+        raise typer.Exit(0)
+
+    out.header("Selected tables")
+    out.tables_table(selected, title="Selected tables")
+    out.info(f"New owner: {owner}")
+
+    if dry_run:
+        out.warn("DRY RUN: no changes will be made.")
+        results = set_tables_owner(adapter, selected, owner, dry_run=True)
+        out.uc_owner_change_results_table(results, title="Owner change (dry-run)")
+        raise typer.Exit(0)
+
+    if not yes:
+        if not out.confirm("Proceed with changing owner for the selected tables?"):
+            out.warn("Cancelled.")
+            raise typer.Exit(0)
+
+    results = set_tables_owner(adapter, selected, owner, dry_run=False)
+    out.uc_owner_change_results_table(results, title="Owner change results")
+
+    failed = [r for r in results if not getattr(r, "ok", False)]
+    if failed:
+        out.error(f"Failed to change owner for {len(failed)} table(s).")
+        raise typer.Exit(1)
+
+    out.success(f"Owner changed for {len(results)} table(s).")
 
 
 @uc_app.command("tables-delete")
@@ -170,3 +325,71 @@ def schema_delete(
     )
 
     out.success("Schema deletion completed.")
+
+
+@uc_app.command("schemas-drop-empty")
+def schemas_drop_empty(
+    catalog: str = typer.Option(..., "--catalog", help="Catalog name"),
+    name: str | None = typer.Option(
+        None, "--name", help="Optional regex filter on schema full name"
+    ),
+    all_: bool = typer.Option(
+        False, "--all", help="Drop all matched empty schemas without selection UI"
+    ),
+    force: bool = typer.Option(False, "--force", help="Force schema deletion"),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Show what would be deleted, but do nothing"
+    ),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation prompt"),
+    profile: str | None = ProfileOpt,
+):
+    """Drop schemas that are currently empty (owner -> current user -> drop)."""
+    client = get_client(profile)
+    adapter = UnityCatalogAdapter(client)
+
+    try:
+        empty = find_empty_schemas(adapter, catalog=catalog, name_regex=name)
+    except NotFound:
+        out.error(f"Catalog '{catalog}' does not exist.")
+        raise typer.Exit(1)
+    except PermissionDenied:
+        out.error(f"No permission to access catalog '{catalog}'.")
+        raise typer.Exit(1)
+
+    if not empty:
+        out.warn("No empty schemas found.")
+        raise typer.Exit(0)
+
+    out.header("Empty schemas")
+    out.schemas_table(empty, title="Empty schemas")
+
+    selected = (
+        empty if all_ else out.select_many("Select empty schemas to drop:", empty)
+    )
+    if not selected:
+        out.warn("No schemas selected.")
+        raise typer.Exit(0)
+
+    out.header("Selected schemas")
+    out.schemas_table(selected, title="Selected schemas")
+
+    if dry_run:
+        out.warn("DRY RUN: no changes will be made.")
+        results = drop_empty_schemas(adapter, selected, force=force, dry_run=True)
+        out.uc_schema_drop_results_table(results, title="Schema drop (dry-run)")
+        raise typer.Exit(0)
+
+    if not yes:
+        if not out.confirm("Proceed with dropping the selected empty schemas?"):
+            out.warn("Cancelled.")
+            raise typer.Exit(0)
+
+    results = drop_empty_schemas(adapter, selected, force=force, dry_run=False)
+    out.uc_schema_drop_results_table(results, title="Schema drop results")
+
+    failed = [r for r in results if not getattr(r, "ok", False)]
+    if failed:
+        out.error(f"Failed to drop {len(failed)} schema(s).")
+        raise typer.Exit(1)
+
+    out.success(f"Dropped {len(results)} empty schema(s).")

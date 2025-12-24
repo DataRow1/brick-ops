@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from typing import Iterable
 
 from db_ops.core.adapters.unitycatalog import UCTable, UnityCatalogAdapter
 
@@ -110,3 +111,110 @@ def delete_schema_with_tables(
         "table_results": table_results,
         "schema_deleted": True,
     }
+
+
+@dataclass(frozen=True)
+class UCOwnerChangeResult:
+    """Result of an ownership change action for a UC object (table/schema)."""
+
+    full_name: str
+    new_owner: str
+    ok: bool
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class UCSchemaDropResult:
+    """Result of dropping a UC schema."""
+
+    schema_full_name: str
+    ok: bool
+    error: str | None = None
+
+
+def set_tables_owner(
+    adapter,
+    table_full_names: Iterable[str],
+    owner: str,
+    *,
+    dry_run: bool,
+) -> list[UCOwnerChangeResult]:
+    """Set the owner of one or more Unity Catalog tables."""
+    results: list[UCOwnerChangeResult] = []
+    for full_name in table_full_names:
+        if dry_run:
+            results.append(
+                UCOwnerChangeResult(full_name=full_name, new_owner=owner, ok=True)
+            )
+            continue
+        try:
+            adapter.set_table_owner(full_name=full_name, owner=owner)
+            results.append(
+                UCOwnerChangeResult(full_name=full_name, new_owner=owner, ok=True)
+            )
+        except Exception as e:  # noqa: BLE001
+            results.append(
+                UCOwnerChangeResult(
+                    full_name=full_name, new_owner=owner, ok=False, error=str(e)
+                )
+            )
+    return results
+
+
+def find_empty_schemas(
+    adapter,
+    catalog: str,
+    *,
+    name_regex: str | None = None,
+) -> list[str]:
+    """Return schema full names (catalog.schema) that currently contain zero tables."""
+    rx = re.compile(name_regex) if name_regex else None
+    empty: list[str] = []
+
+    schemas = adapter.list_schemas(catalog=catalog)
+    for s in schemas:
+        schema_name = getattr(s, "name", None)
+        schema_full_name = getattr(s, "full_name", None)
+        if not schema_name or not schema_full_name:
+            continue
+        if rx and not rx.search(schema_full_name):
+            continue
+
+        tables = adapter.list_tables(catalog=catalog, schema=schema_name)
+        if len(tables) == 0:
+            empty.append(schema_full_name)
+
+    return empty
+
+
+def drop_empty_schemas(
+    adapter,
+    schema_full_names: Iterable[str],
+    *,
+    force: bool = False,
+    dry_run: bool,
+) -> list[UCSchemaDropResult]:
+    """Drop schemas that are already empty (owner will be set to current user first)."""
+    me = adapter.current_username()
+    results: list[UCSchemaDropResult] = []
+
+    for schema_full_name in schema_full_names:
+        if dry_run:
+            results.append(
+                UCSchemaDropResult(schema_full_name=schema_full_name, ok=True)
+            )
+            continue
+        try:
+            adapter.set_schema_owner(schema_full_name=schema_full_name, owner=me)
+            adapter.delete_schema(schema_full_name=schema_full_name, force=force)
+            results.append(
+                UCSchemaDropResult(schema_full_name=schema_full_name, ok=True)
+            )
+        except Exception as e:  # noqa: BLE001
+            results.append(
+                UCSchemaDropResult(
+                    schema_full_name=schema_full_name, ok=False, error=str(e)
+                )
+            )
+
+    return results
