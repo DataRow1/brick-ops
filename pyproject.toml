@@ -1,7 +1,7 @@
 [project]
 name = "db-ops"
 version = "0.1.0"
-description = "Databricks ops tooling (core + CLI)"
+description = "Databricks operations commandline tool"
 requires-python = ">=3.11"
 
 dependencies = ["databricks-sdk>=0.30.0"]
