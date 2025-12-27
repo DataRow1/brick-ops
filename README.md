@@ -48,6 +48,13 @@ source .venv/bin/activate
 uv pip install .
 ```
 
+### Using homebrew (slow due to no signing)
+
+```bash
+brew tap datarow1/brick-ops
+brew install brick-ops
+```
+
 Verify:
 
 ```bash
@@ -55,13 +62,6 @@ dbops --help
 ```
 
 ---
-
-### Using homebrew (slow due to no signing)
-
-```bash
-brew tap datarow1/brick-ops
-brew install brick-ops
-```
 
 ## Authentication
 
