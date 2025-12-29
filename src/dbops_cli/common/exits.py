@@ -1,5 +1,7 @@
 """Exit handling utilities for the CLI."""
 
+from typing import NoReturn
+
 import typer
 
 from dbops_cli.common.output import out
@@ -22,3 +24,13 @@ def warn_exit(msg: str, code: int = 0) -> "None":
     """Exit with a warning message and optional exit code."""
     out.warn(msg)
     raise typer.Exit(code)
+
+
+def exit_from_exc(exc: Exception, *, message: str, code: int = 1) -> NoReturn:
+    """
+    Helper function to print an error message and exit with a given code.
+
+    Exists to satisfy pylint W0707 and to standardize error exits.
+    """
+    out.error(message)
+    raise typer.Exit(code) from exc
