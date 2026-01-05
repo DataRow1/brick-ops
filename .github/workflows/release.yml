@@ -103,11 +103,10 @@ jobs:
       contents: read
 
     steps:
-      - name: Compute tag/version
+      - name: Compute tag
         id: ver
         run: |
           echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
-          echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Checkout tap repo
         uses: actions/checkout@v4
@@ -134,7 +133,6 @@ jobs:
       - name: Update formula
         run: |
           set -euo pipefail
-          VERSION="${{ steps.ver.outputs.version }}"
           TAG="${{ steps.ver.outputs.tag }}"
           ARM_SHA="${{ steps.sha.outputs.arm64 }}"
           AMD_SHA="${{ steps.sha.outputs.amd64 }}"
@@ -142,21 +140,73 @@ jobs:
 
           F="tap/Formula/brick-ops.rb"
 
-          # version "x.y.z"
-          perl -0777 -i -pe "s/version\\s+\\\"[0-9.]+\\\"/version \\\"${VERSION}\\\"/g" "$F"
-          perl -0777 -i -pe "s#\\bon_macos\\s+do\\b[\\s\\S]*?^\\s{2}end\\s*$#on_macos do\n    if Hardware::CPU.arm?\n      url \\\"https://github.com/DataRow1/brick-ops/releases/download/#\\{version\\}/dbops-darwin-arm64.tar.gz\\\"\n      sha256 \\\"__DARWIN_ARM64_SHA256__\\\"\n    else\n      url \\\"https://github.com/DataRow1/brick-ops/releases/download/#\\{version\\}/dbops-darwin-amd64.tar.gz\\\"\n      sha256 \\\"__DARWIN_AMD64_SHA256__\\\"\n    end\n  end#gms" "$F"
-          perl -0777 -i -pe "s#\\bon_linux\\s+do\\b[\\s\\S]*?^\\s{2}end\\s*$#on_linux do\n    url \\\"https://github.com/DataRow1/brick-ops/releases/download/#\\{version\\}/dbops-linux-amd64.tar.gz\\\"\n    sha256 \\\"__LINUX_AMD64_SHA256__\\\"\n  end#gms" "$F"
+          python3 - <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          formula_path = Path(os.environ.get("F", "tap/Formula/brick-ops.rb"))
+          tag = os.environ["TAG"]
+          arm_sha = os.environ["ARM_SHA"]
+          amd_sha = os.environ["AMD_SHA"]
+          linux_amd_sha = os.environ["LINUX_AMD_SHA"]
+
+          txt = formula_path.read_text(encoding="utf-8")
+
+          # 1) Bump tap formula version to match the release tag (Homebrew URLs use #{version}).
+          txt, n = re.subn(r'\bversion\s+"[0-9.]+"', f'version "{tag}"', txt)
+          if n == 0:
+              raise SystemExit("Did not find version line in formula")
+
+          # 2) Canonicalize on_macos and on_linux blocks (repairs corrupted URLs and ensures sha256 lines exist)
+
+          mac_block = (
+              '  on_macos do\n'
+              '    if Hardware::CPU.arm?\n'
+              '      url "https://github.com/DataRow1/brick-ops/releases/download/#{version}/dbops-darwin-arm64.tar.gz"\n'
+              f'      sha256 "{arm_sha}"\n'
+              '    else\n'
+              '      url "https://github.com/DataRow1/brick-ops/releases/download/#{version}/dbops-darwin-amd64.tar.gz"\n'
+              f'      sha256 "{amd_sha}"\n'
+              '    end\n'
+              '  end'
+          )
+
+          linux_block = (
+              '  on_linux do\n'
+              '    url "https://github.com/DataRow1/brick-ops/releases/download/#{version}/dbops-linux-amd64.tar.gz"\n'
+              f'    sha256 "{linux_amd_sha}"\n'
+              '  end'
+          )
+
+          def replace_block(src: str, name: str, replacement: str) -> str:
+              pattern = re.compile(rf'^  on_{name} do\n(?:.|\n)*?^  end\n?', re.M)
+              if not pattern.search(src):
+                  raise SystemExit(f"Did not find on_{name} block to replace")
+              return pattern.sub(replacement + "\n\n", src, count=1)
+
+          txt = replace_block(txt, "macos", mac_block)
+          txt = replace_block(txt, "linux", linux_block)
+
+          formula_path.write_text(txt, encoding="utf-8")
+          print(f"Updated {formula_path} version + sha256 for tag {tag}")
+          PY
+        env:
+          F: tap/Formula/brick-ops.rb
+          TAG: ${{ steps.ver.outputs.tag }}
+          ARM_SHA: ${{ steps.sha.outputs.arm64 }}
+          AMD_SHA: ${{ steps.sha.outputs.amd64 }}
+          LINUX_AMD_SHA: ${{ steps.sha.outputs.linux_amd64 }}
 
       - name: Create PR in tap repo
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.TAP_GITHUB_TOKEN }}
           path: tap
-          branch: "update/brick-ops-${{ steps.ver.outputs.version }}"
-          commit-message: "brick-ops ${{ steps.ver.outputs.version }}"
-          title: "brick-ops ${{ steps.ver.outputs.version }}"
+          branch: "update/brick-ops-${{ steps.ver.outputs.tag }}"
+          commit-message: "brick-ops ${{ steps.ver.outputs.tag }}"
+          title: "brick-ops ${{ steps.ver.outputs.tag }}"
           body: |
-            Automated update for brick-ops ${{ steps.ver.outputs.version }}.
-            - updated version
+            Automated update for brick-ops ${{ steps.ver.outputs.tag }}.
             - updated sha256
           delete-branch: true
