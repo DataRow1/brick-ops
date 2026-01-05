@@ -121,13 +121,15 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ steps.ver.outputs.tag }}"
-          BASE="https://github.com/DataRow1/db-ops/releases/download/${TAG}"
+          BASE="https://github.com/DataRow1/brick-ops/releases/download/${TAG}"
 
           curl -fsSL "${BASE}/dbops-darwin-arm64.tar.gz" -o arm64.tar.gz
           curl -fsSL "${BASE}/dbops-darwin-amd64.tar.gz" -o amd64.tar.gz
+          curl -fsSL "${BASE}/dbops-linux-amd64.tar.gz" -o linux-amd64.tar.gz
 
           echo "arm64=$(sha256sum arm64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
           echo "amd64=$(sha256sum amd64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "linux_amd64=$(sha256sum linux-amd64.tar.gz | awk '{print $1}')" >> "$GITHUB_OUTPUT"
 
       - name: Update formula
         run: |
@@ -136,19 +138,16 @@ jobs:
           TAG="${{ steps.ver.outputs.tag }}"
           ARM_SHA="${{ steps.sha.outputs.arm64 }}"
           AMD_SHA="${{ steps.sha.outputs.amd64 }}"
+          LINUX_AMD_SHA="${{ steps.sha.outputs.linux_amd64 }}"
 
           F="tap/Formula/brick-ops.rb"
 
           # version "x.y.z"
           perl -0777 -i -pe "s/version\\s+\\\"[0-9.]+\\\"/version \\\"${VERSION}\\\"/g" "$F"
 
-          # URLs (no v)
-          perl -0777 -i -pe "s|releases/download/[0-9.]+/dbops-darwin-arm64\\.tar\\.gz|releases/download/${TAG}/dbops-darwin-arm64.tar.gz|g" "$F"
-          perl -0777 -i -pe "s|releases/download/[0-9.]+/dbops-darwin-amd64\\.tar\\.gz|releases/download/${TAG}/dbops-darwin-amd64.tar.gz|g" "$F"
-
-          # sha256 next to each URL
-          perl -0777 -i -pe "s|(dbops-darwin-arm64\\.tar\\.gz\\\"\\s*\\n\\s*sha256\\s+\\\")[a-f0-9]{64}(\\\")|\\1${ARM_SHA}\\2|g" "$F"
-          perl -0777 -i -pe "s|(dbops-darwin-amd64\\.tar\\.gz\\\"\\s*\\n\\s*sha256\\s+\\\")[a-f0-9]{64}(\\\")|\\1${AMD_SHA}\\2|g" "$F"
+          perl -0777 -i -pe "s|(dbops-darwin-arm64\\.tar\\.gz\\\"\\s*\\n\\s*sha256\\s+\\\")(?:[a-f0-9]{64}|__DARWIN_ARM64_SHA256__)(\\\")|\\1${ARM_SHA}\\2|g" "$F"
+          perl -0777 -i -pe "s|(dbops-darwin-amd64\\.tar\\.gz\\\"\\s*\\n\\s*sha256\\s+\\\")(?:[a-f0-9]{64}|__DARWIN_AMD64_SHA256__)(\\\")|\\1${AMD_SHA}\\2|g" "$F"
+          perl -0777 -i -pe "s|(dbops-linux-amd64\\.tar\\.gz\\\"\\s*\\n\\s*sha256\\s+\\\")(?:[a-f0-9]{64}|__LINUX_AMD64_SHA256__)(\\\")|\\1${LINUX_AMD_SHA}\\2|g" "$F"
 
       - name: Create PR in tap repo
         uses: peter-evans/create-pull-request@v6
@@ -161,6 +160,5 @@ jobs:
           body: |
             Automated update for brick-ops ${{ steps.ver.outputs.version }}.
             - updated version
-            - updated URLs
             - updated sha256
           delete-branch: true
