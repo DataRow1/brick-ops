@@ -5,9 +5,9 @@ import re
 import typer
 from databricks.sdk.errors import NotFound, PermissionDenied
 
-from db_ops.core.adapters.unitycatalog import UnityCatalogAdapter
-from db_ops.core.auth import get_client
-from db_ops.core.catalog import (
+from dbops.core.adapters.unitycatalog import UnityCatalogAdapter
+from dbops.core.auth import get_client
+from dbops.core.catalog import (
     delete_schema_with_tables,
     delete_tables,
     drop_empty_schemas,
@@ -15,8 +15,9 @@ from db_ops.core.catalog import (
     parse_schema_full_name,
     set_tables_owner,
 )
-from dbops_cli.common.options import ProfileOpt
-from dbops_cli.common.output import out
+from dbops.cli.common.exits import exit_from_exc
+from dbops.cli.common.options import ProfileOpt
+from dbops.cli.common.output import out
 
 uc_app = typer.Typer(help="Unity Catalog operations.", no_args_is_help=True)
 
@@ -55,12 +56,14 @@ def tables_list(
 
     try:
         tables = adapter.list_tables(catalog=catalog, schema=schema_name)
-    except NotFound:
-        out.error(f"Schema '{schema_full_name}' does not exist.")
-        raise typer.Exit(1)
-    except PermissionDenied:
-        out.error(f"No permission to access schema '{schema_full_name}'.")
-        raise typer.Exit(1)
+    except NotFound as exc:
+        exit_from_exc(
+            exc, message=f"Schema '{schema_full_name}' does not exist.", code=1
+        )
+    except PermissionDenied as exc:
+        exit_from_exc(
+            exc, message=f"No permission to access schema '{schema_full_name}'.", code=1
+        )
 
     if name:
         rx = re.compile(name)
@@ -119,12 +122,14 @@ def tables_owner_set(
     catalog, schema_name = parse_schema_full_name(schema_full_name)
     try:
         tables = adapter.list_tables(catalog=catalog, schema=schema_name)
-    except NotFound:
-        out.error(f"Schema '{schema_full_name}' does not exist.")
-        raise typer.Exit(1)
-    except PermissionDenied:
-        out.error(f"No permission to access schema '{schema_full_name}'.")
-        raise typer.Exit(1)
+    except NotFound as exc:
+        exit_from_exc(
+            exc, message=f"Schema '{schema_full_name}' does not exist.", code=1
+        )
+    except PermissionDenied as exc:
+        exit_from_exc(
+            exc, message=f"No permission to access schema '{schema_full_name}'.", code=1
+        )
 
     if name:
         rx = re.compile(name)
@@ -207,12 +212,16 @@ def tables_delete(
     catalog, schema_name = parse_schema_full_name(schema_full_name)
     try:
         tables = adapter.list_tables(catalog=catalog, schema=schema_name)
-    except NotFound:
-        out.error(f"Schema '{catalog}.{schema_name}' does not exist.")
-        raise typer.Exit(1)
-    except PermissionDenied:
-        out.error(f"No permission to access schema '{catalog}.{schema_name}'.")
-        raise typer.Exit(1)
+    except NotFound as exc:
+        exit_from_exc(
+            exc, message=f"Schema '{catalog}.{schema_name}' does not exist.", code=1
+        )
+    except PermissionDenied as exc:
+        exit_from_exc(
+            exc,
+            message=f"No permission to access schema '{catalog}.{schema_name}'.",
+            code=1,
+        )
 
     full_names = [t.full_name for t in tables]
 
@@ -290,12 +299,12 @@ def schema_delete(
             force_schema_delete=force,
             dry_run=True,
         )
-    except NotFound:
-        out.error(f"Schema '{schema}' does not exist.")
-        raise typer.Exit(1)
-    except PermissionDenied:
-        out.error(f"No permission to access schema '{schema}'.")
-        raise typer.Exit(1)
+    except NotFound as exc:
+        exit_from_exc(exc, message=f"Schema '{schema}' does not exist.", code=1)
+    except PermissionDenied as exc:
+        exit_from_exc(
+            exc, message=f"No permission to access schema '{schema}'.", code=1
+        )
 
     out.header("Deletion plan")
     out.kv(
@@ -349,12 +358,12 @@ def schemas_drop_empty(
 
     try:
         empty = find_empty_schemas(adapter, catalog=catalog, name_regex=name)
-    except NotFound:
-        out.error(f"Catalog '{catalog}' does not exist.")
-        raise typer.Exit(1)
-    except PermissionDenied:
-        out.error(f"No permission to access catalog '{catalog}'.")
-        raise typer.Exit(1)
+    except NotFound as exc:
+        exit_from_exc(exc, message=f"Catalog '{catalog}' does not exist.", code=1)
+    except PermissionDenied as exc:
+        exit_from_exc(
+            exc, message=f"No permission to access catalog '{catalog}'.", code=1
+        )
 
     if not empty:
         out.warn("No empty schemas found.")

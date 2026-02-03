@@ -38,7 +38,7 @@ It is designed for data engineers and platform teams who want safe, fast, and co
 - Databricks CLI
 - Access to a Databricks workspace
 
-### Using `uv` (recommended)
+### Using uv (from source)
 
 ```bash
 git clone https://github.com/datarow1/db-ops.git
@@ -48,14 +48,14 @@ source .venv/bin/activate
 uv pip install .
 ```
 
-### Using homebrew (slow due to no signing)
+### Using homebrew (recommended)
 
 ```bash
 brew tap datarow1/brick-ops
 brew install brick-ops
 ```
 
-Verify:
+Verify (after authentication - see below):
 
 ```bash
 dbops --help
@@ -215,18 +215,19 @@ All prompts are styled consistently with the BRICK-OPS theme.
 ```text
 db-ops/
 ├── src/
-│   ├── db_ops/              # Core logic
-│   │   ├── adapters/
-│   │   ├── selectors/
-│   │   ├── jobs.py
-│   │   └── uc_models.py
-│   └── dbops_cli/           # CLI
-│       ├── commands/
-│       ├── common/
-│       │   ├── output.py
-│       │   ├── progress.py
-│       │   └── prompts.py
-│       └── cli.py
+│   └── dbops/               # Single package
+│       ├── core/            # Core logic
+│       │   ├── adapters/
+│       │   ├── selectors.py
+│       │   ├── jobs.py
+│       │   └── uc_models.py
+│       └── cli/             # CLI
+│           ├── commands/
+│           ├── common/
+│           │   ├── output.py
+│           │   ├── progress.py
+│           │   └── selector_builder.py
+│           └── cli.py
 ├── pyproject.toml
 └── README.md
 ```
@@ -259,15 +260,42 @@ db-ops/
 ## Development
 
 ```bash
+uv venv
+source .venv/bin/activate
+uv pip install -e .
+uv pip install ruff pytest pre-commit
+```
+
+```bash
 ruff check .
 ruff format .
 ```
 
-Run tests (if present):
+Run tests and a quick smoke check:
 
 ```bash
 pytest
+python -m dbops --help
 ```
+
+Install commit message linting (Conventional Commits):
+
+```bash
+pre-commit install --hook-type commit-msg
+```
+
+Before merging checklist:
+
+- `ruff check .`
+- `pytest`
+- `python -m dbops --help`
+- Conventional Commit message on your commits (or use the pre-commit hook)
+
+Make shortcuts:
+
+- `make setup`
+- `make check`
+- `make precommit`
 
 ---
 
