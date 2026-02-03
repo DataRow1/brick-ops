@@ -1,4 +1,4 @@
-name: Homebrew Release
+name: homebrew-release
 
 on:
   workflow_call:
