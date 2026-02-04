@@ -27,5 +27,5 @@ def build_context(profile: str | None) -> AppContext:
         AppContext: Application context with configured client and adapter.
     """
     client = get_client(profile)
-    adapter = DatabricksJobsAdapter(client)
+    adapter = DatabricksJobsAdapter(client, profile=profile)
     return AppContext(profile=profile, client=client, adapter=adapter)
