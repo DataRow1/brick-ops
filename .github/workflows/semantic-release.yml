@@ -44,7 +44,7 @@ jobs:
         if: ${{ always() }}
         run: |
           . .venv/bin/activate
-          semantic-release version --noop -v
+          semantic-release -vv --noop version --print
 
       - name: Determine release tag
         id: version
