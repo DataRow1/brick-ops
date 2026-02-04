@@ -42,11 +42,16 @@ dev = ["ruff", "pytest", "pre-commit"]
 packages = ["src/dbops"]
 
 [tool.semantic_release]
-branch = "main"
 tag_format = "{version}"
 commit_parser = "conventional"
 version_toml = ["pyproject.toml:project.version"]
 allow_zero_version = true
+
+[tool.semantic_release.branches.main]
+match = "^(main|master)$"
+
+[tool.semantic_release.branches.release_pr]
+match = "^rw/.*$"
 
 [tool.semantic_release.commit_parser_options]
 allowed_tags = [
