@@ -39,6 +39,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           . .venv/bin/activate
+          semantic-release -v version
           semantic-release -v publish
 
       - name: Debug semantic-release (no publish)
