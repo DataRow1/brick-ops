@@ -103,6 +103,7 @@ class DatabricksJobsAdapter:
         path.write_text(json.dumps(payload))
 
     def find_all_jobs(self) -> list[Job]:
+        """Return all jobs in the workspace (cached when enabled)."""
         cached = self._load_cached_jobs()
         if cached is not None:
             return cached
@@ -125,10 +126,12 @@ class DatabricksJobsAdapter:
         return jobs
 
     def start_job(self, job_id: int) -> JobRun:
+        """Start a Databricks job and return its run handle."""
         run = self.client.jobs.run_now(job_id=job_id)
         return JobRun(run_id=run.run_id, job_id=job_id)
 
     def get_run_status(self, run_id: int) -> RunStatus:
+        """Return the current status for a Databricks job run."""
         run = self.client.jobs.get_run(run_id)
         state = run.state
 
