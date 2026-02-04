@@ -49,20 +49,25 @@ jobs:
           fi
 
       - name: Determine next release
+        id: next
         run: |
           . .venv/bin/activate
           semantic-release --noop -v version --print | tee /tmp/semrel.log
 
           if grep -q "No release will be made" /tmp/semrel.log; then
             echo "No release needed."
+            echo "release_needed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          echo "release_needed=true" >> "$GITHUB_OUTPUT"
 
       - name: Bump version and changelog
+        if: ${{ steps.next.outputs.release_needed == 'true' }}
         run: |
           . .venv/bin/activate
           semantic-release version --no-push
 
       - name: Push release commit
+        if: ${{ steps.next.outputs.release_needed == 'true' }}
         run: |
           git push origin HEAD:${{ github.event.pull_request.head.ref }}
