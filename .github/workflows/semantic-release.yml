@@ -12,48 +12,50 @@ jobs:
   release:
     runs-on: ubuntu-latest
     outputs:
-      tag: ${{ steps.version.outputs.tag }}
+      tag: ${{ steps.tag.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v3
-
-      - name: Install semantic-release
-        run: |
-          uv venv --python 3.11
-          . .venv/bin/activate
-          uv pip install python-semantic-release
-
-      - name: Semantic release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          . .venv/bin/activate
-          semantic-release -v version
-          semantic-release -v publish
-
-      - name: Debug semantic-release (no publish)
-        if: ${{ always() }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          . .venv/bin/activate
-          semantic-release --noop -vv version --print
-
-      - name: Determine release tag
+      - name: Read version from pyproject.toml
         id: version
         run: |
-          TAG=$(git tag --points-at HEAD | head -n 1 || true)
-          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          VERSION=$(python3 - <<'PY'
+          import tomllib
+          from pathlib import Path
+          data = tomllib.loads(Path("pyproject.toml").read_text())
+          print(data["project"]["version"])
+          PY
+          )
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Read latest tag
+        id: latest
+        run: |
+          LATEST=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          echo "latest=$LATEST" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        id: tag
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          LATEST: ${{ steps.latest.outputs.latest }}
+        run: |
+          if [ -z "$VERSION" ]; then
+            echo "Version not found in pyproject.toml"
+            exit 1
+          fi
+
+          if [ "$VERSION" = "$LATEST" ]; then
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git tag "$VERSION"
+          git push origin "$VERSION"
+          echo "tag=$VERSION" >> "$GITHUB_OUTPUT"
 
   homebrew-release:
     needs: release
