@@ -2,8 +2,8 @@
 
 Databricks Operations CLI
 
-BRICK-OPS is an opinionated, interactive command-line tool for Databricks operations, focused on Jobs and Unity Catalog.
-It is designed for data engineers and platform teams who want safe, fast, and consistent operational workflows — with previews, confirmations, and dry-runs by default.
+BRICK-OPS is an interactive command-line tool for Databricks operations, focused on Jobs and Unity Catalog.
+It is designed for data engineers and platform teams to assist in operational workflows, within a CLI instead of the Databricks UX — with previews, confirmations, and dry-runs.
 
 ---
 
