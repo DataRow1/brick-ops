@@ -67,7 +67,8 @@ def tables_list(
     catalog, schema_name = parse_schema_full_name(schema_full_name)
 
     try:
-        tables = adapter.list_tables(catalog=catalog, schema=schema_name)
+        with out.status("Loading tables..."):
+            tables = adapter.list_tables(catalog=catalog, schema=schema_name)
     except NotFound as exc:
         exit_from_exc(
             exc, message=f"Schema '{schema_full_name}' does not exist.", code=1
@@ -133,7 +134,8 @@ def tables_owner_set(
 
     catalog, schema_name = parse_schema_full_name(schema_full_name)
     try:
-        tables = adapter.list_tables(catalog=catalog, schema=schema_name)
+        with out.status("Loading tables..."):
+            tables = adapter.list_tables(catalog=catalog, schema=schema_name)
     except NotFound as exc:
         exit_from_exc(
             exc, message=f"Schema '{schema_full_name}' does not exist.", code=1
@@ -170,7 +172,8 @@ def tables_owner_set(
 
     if dry_run:
         out.warn("DRY RUN: no changes will be made.")
-        results = set_tables_owner(adapter, selected, owner, dry_run=True)
+        with out.status("Building owner change preview..."):
+            results = set_tables_owner(adapter, selected, owner, dry_run=True)
         out.uc_owner_change_results_table(results, title="Owner change (dry-run)")
         raise typer.Exit(0)
 
@@ -179,7 +182,8 @@ def tables_owner_set(
             out.warn("Cancelled.")
             raise typer.Exit(0)
 
-    results = set_tables_owner(adapter, selected, owner, dry_run=False)
+    with out.status("Updating table owners..."):
+        results = set_tables_owner(adapter, selected, owner, dry_run=False)
     out.uc_owner_change_results_table(results, title="Owner change results")
 
     failed = [r for r in results if not getattr(r, "ok", False)]
@@ -223,7 +227,8 @@ def tables_delete(
 
     catalog, schema_name = parse_schema_full_name(schema_full_name)
     try:
-        tables = adapter.list_tables(catalog=catalog, schema=schema_name)
+        with out.status("Loading tables..."):
+            tables = adapter.list_tables(catalog=catalog, schema=schema_name)
     except NotFound as exc:
         exit_from_exc(
             exc, message=f"Schema '{catalog}.{schema_name}' does not exist.", code=1
@@ -268,7 +273,9 @@ def tables_delete(
             out.warn("Cancelled.")
             raise typer.Exit(0)
 
-    results = delete_tables(adapter, selected, dry_run=dry_run)
+    status_msg = "Planning table deletions..." if dry_run else "Deleting tables..."
+    with out.status(status_msg):
+        results = delete_tables(adapter, selected, dry_run=dry_run)
 
     out.uc_delete_results_table(results, title="Delete results")
 
@@ -304,13 +311,14 @@ def schema_delete(
         raise typer.Exit(2)
 
     try:
-        plan = delete_schema_with_tables(
-            adapter,
-            schema_full_name=schema,
-            table_name_regex=name,
-            force_schema_delete=force,
-            dry_run=True,
-        )
+        with out.status("Building deletion plan..."):
+            plan = delete_schema_with_tables(
+                adapter,
+                schema_full_name=schema,
+                table_name_regex=name,
+                force_schema_delete=force,
+                dry_run=True,
+            )
     except NotFound as exc:
         exit_from_exc(exc, message=f"Schema '{schema}' does not exist.", code=1)
     except PermissionDenied as exc:
@@ -337,13 +345,14 @@ def schema_delete(
             out.warn("Cancelled.")
             raise typer.Exit(0)
 
-    delete_schema_with_tables(
-        adapter,
-        schema_full_name=schema,
-        table_name_regex=name,
-        force_schema_delete=force,
-        dry_run=False,
-    )
+    with out.status("Deleting tables and schema..."):
+        delete_schema_with_tables(
+            adapter,
+            schema_full_name=schema,
+            table_name_regex=name,
+            force_schema_delete=force,
+            dry_run=False,
+        )
 
     out.success("Schema deletion completed.")
 
@@ -369,7 +378,8 @@ def schemas_drop_empty(
     adapter = appctx.adapter
 
     try:
-        empty = find_empty_schemas(adapter, catalog=catalog, name_regex=name)
+        with out.status("Scanning schemas for empties..."):
+            empty = find_empty_schemas(adapter, catalog=catalog, name_regex=name)
     except NotFound as exc:
         exit_from_exc(exc, message=f"Catalog '{catalog}' does not exist.", code=1)
     except PermissionDenied as exc:
@@ -396,7 +406,8 @@ def schemas_drop_empty(
 
     if dry_run:
         out.warn("DRY RUN: no changes will be made.")
-        results = drop_empty_schemas(adapter, selected, force=force, dry_run=True)
+        with out.status("Planning schema drops..."):
+            results = drop_empty_schemas(adapter, selected, force=force, dry_run=True)
         out.uc_schema_drop_results_table(results, title="Schema drop (dry-run)")
         raise typer.Exit(0)
 
@@ -405,7 +416,8 @@ def schemas_drop_empty(
             out.warn("Cancelled.")
             raise typer.Exit(0)
 
-    results = drop_empty_schemas(adapter, selected, force=force, dry_run=False)
+    with out.status("Dropping schemas..."):
+        results = drop_empty_schemas(adapter, selected, force=force, dry_run=False)
     out.uc_schema_drop_results_table(results, title="Schema drop results")
 
     failed = [r for r in results if not getattr(r, "ok", False)]

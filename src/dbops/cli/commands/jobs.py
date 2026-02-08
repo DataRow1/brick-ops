@@ -67,7 +67,8 @@ def find(
     except ValueError as e:
         die(str(e), code=1)
 
-    jobs = core_select_jobs(appctx.adapter, selector)
+    with out.status("Loading jobs..."):
+        jobs = core_select_jobs(appctx.adapter, selector)
 
     if not jobs:
         warn_exit("No jobs found", code=0)
@@ -96,7 +97,8 @@ def run(
     except ValueError as e:
         die(str(e), code=1)
 
-    jobs = core_select_jobs(appctx.adapter, selector)
+    with out.status("Loading jobs..."):
+        jobs = core_select_jobs(appctx.adapter, selector)
 
     if not jobs:
         warn_exit("No jobs found", code=0)
@@ -116,7 +118,8 @@ def run(
     if confirm and not Confirm.ask("Start the selected jobs?"):
         ok_exit("Cancelled")
 
-    runs = start_jobs_parallel(appctx.adapter, [j.id for j in selected], parallel)
+    with out.status("Starting jobs..."):
+        runs = start_jobs_parallel(appctx.adapter, [j.id for j in selected], parallel)
 
     out.success(f"Jobs started: {len(runs)} run(s)")
     out.runs_table(runs, title="Started runs")
