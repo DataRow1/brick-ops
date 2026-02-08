@@ -42,7 +42,8 @@ def _init(
     ctx.obj = build_jobs_context(profile, refresh_jobs=refresh)
     if refresh and ctx.invoked_subcommand is None:
         appctx: JobsAppContext = ctx.obj
-        appctx.adapter.find_all_jobs()
+        with out.status("Refreshing jobs cache..."):
+            appctx.adapter.find_all_jobs()
         ok_exit("Jobs cache refreshed")
     if ctx.invoked_subcommand is None:
         typer.echo(ctx.get_help())
