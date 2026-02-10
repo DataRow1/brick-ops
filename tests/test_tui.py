@@ -1,4 +1,9 @@
-from dbops.cli.tui import _MAX_JOB_NAME_WIDTH, _job_choice_title, _truncate
+from dbops.cli.tui import (
+    _MAX_JOB_NAME_WIDTH,
+    _job_choice_title,
+    _sort_jobs_for_display,
+    _truncate,
+)
 from dbops.core.jobs import Job
 
 
@@ -21,3 +26,14 @@ def test_job_choice_title_truncates_long_names():
     assert "..." in rendered
     assert "(id: 99)" in rendered
     assert _truncate(long_name, _MAX_JOB_NAME_WIDTH).endswith("...")
+
+
+def test_sort_jobs_for_display_is_alphabetical_case_insensitive():
+    jobs = [
+        Job(id=3, name="zeta"),
+        Job(id=2, name="Alpha"),
+        Job(id=1, name="beta"),
+    ]
+
+    sorted_jobs = _sort_jobs_for_display(jobs)
+    assert [job.name for job in sorted_jobs] == ["Alpha", "beta", "zeta"]

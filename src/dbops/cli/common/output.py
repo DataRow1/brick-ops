@@ -155,6 +155,26 @@ class Out:
         )
         return bool(prompt.ask())
 
+    def _job_label_from_id(
+        self,
+        job_id: Any,
+        job_name_by_id: Mapping[int, str] | None,
+    ) -> str:
+        """Return job display label, preferring mapped name when available."""
+        if job_name_by_id and isinstance(job_id, int):
+            return str(job_name_by_id.get(job_id, job_id))
+        return str(job_id)
+
+    def _run_sort_key(
+        self,
+        run: Any,
+        job_name_by_id: Mapping[int, str] | None,
+    ) -> tuple[str, str]:
+        """Sort runs by visible job label, then by run id."""
+        job_label = self._job_label_from_id(getattr(run, "job_id", None), job_name_by_id)
+        run_id = str(getattr(run, "run_id", ""))
+        return (job_label.casefold(), run_id)
+
     def jobs_table(self, jobs: Iterable[Any], title: str = "Jobs") -> None:
         """
         Expects objects with .id .name .tags (like dbops.core.models.Job)
@@ -164,7 +184,15 @@ class Out:
         t.add_column("Name")
         t.add_column("Tags", style="meta")
 
-        for j in jobs:
+        jobs_list = sorted(
+            list(jobs),
+            key=lambda j: (
+                str(getattr(j, "name", "")).casefold(),
+                str(getattr(j, "id", "")),
+            ),
+        )
+
+        for j in jobs_list:
             tags = ", ".join(
                 f"{k}={v}" for k, v in (getattr(j, "tags", None) or {}).items()
             )
@@ -187,12 +215,14 @@ class Out:
         t.add_column("Job", style="ok", no_wrap=True)
         t.add_column("Run ID", style="ok", no_wrap=True)
 
-        for r in runs:
+        runs_list = sorted(
+            list(runs),
+            key=lambda run: self._run_sort_key(run, job_name_by_id),
+        )
+
+        for r in runs_list:
             job_id = getattr(r, "job_id", None)
-            if job_name_by_id and isinstance(job_id, int):
-                job_label = job_name_by_id.get(job_id, str(job_id))
-            else:
-                job_label = str(job_id)
+            job_label = self._job_label_from_id(job_id, job_name_by_id)
             t.add_row(job_label, str(r.run_id))
 
         console.print(t)
@@ -212,13 +242,15 @@ class Out:
         t.add_column("Run ID", style="ok", no_wrap=True)
         t.add_column("Status")
 
-        for run, status in results:
+        results_list = sorted(
+            list(results),
+            key=lambda item: self._run_sort_key(item[0], job_name_by_id),
+        )
+
+        for run, status in results_list:
             status_value = status.value if hasattr(status, "value") else str(status)
             job_id = getattr(run, "job_id", None)
-            if job_name_by_id and isinstance(job_id, int):
-                job_label = job_name_by_id.get(job_id, str(job_id))
-            else:
-                job_label = str(job_id)
+            job_label = self._job_label_from_id(job_id, job_name_by_id)
 
             style = "ok" if status_value == "SUCCESS" else "err"
 

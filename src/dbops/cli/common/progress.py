@@ -57,6 +57,15 @@ def _display_job_label(
     return f"{short_name.ljust(name_width)}  (id: {job_id})"
 
 
+def _run_display_sort_key(
+    run: JobRun,
+    job_name_by_id: Mapping[int, str] | None,
+) -> tuple[str, str]:
+    """Sort runs by displayed job label, then by run id."""
+    job_label = str(job_name_by_id.get(run.job_id, run.job_id)) if job_name_by_id else str(run.job_id)
+    return (job_label.casefold(), str(run.run_id))
+
+
 def wait_for_runs_with_progress(
     adapter: JobRunsAdapter,
     runs: list[JobRun],
@@ -119,7 +128,11 @@ def wait_for_runs_with_progress(
     )
 
     task_ids: dict[int, int] = {}
-    for r in runs:
+    display_runs = sorted(
+        runs,
+        key=lambda run: _run_display_sort_key(run, job_name_by_id),
+    )
+    for r in display_runs:
         job_label = _display_job_label(
             r.job_id,
             job_name_by_id,

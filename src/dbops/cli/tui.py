@@ -23,6 +23,11 @@ def _job_choice_title(job: Job, *, name_width: int) -> str:
     return f"{short_name.ljust(name_width)}  (id: {job.id})"
 
 
+def _sort_jobs_for_display(jobs: list[Job]) -> list[Job]:
+    """Sort jobs alphabetically by name (case-insensitive), then by id."""
+    return sorted(jobs, key=lambda job: (job.name.casefold(), job.id))
+
+
 def select_jobs(jobs: list[Job]) -> list[Job]:
     """Display a checkbox prompt to select jobs from a list.
 
@@ -32,6 +37,7 @@ def select_jobs(jobs: list[Job]) -> list[Job]:
     Returns:
         A list of selected Job objects, or an empty list if none selected.
     """
+    jobs = _sort_jobs_for_display(jobs)
     shown_names = [_truncate(job.name, _MAX_JOB_NAME_WIDTH) for job in jobs]
     name_width = max((len(name) for name in shown_names), default=0)
 
